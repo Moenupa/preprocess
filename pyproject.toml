@@ -9,7 +9,17 @@ description = "The missing data preprocessing library for LLM/VLM SFT/RL."
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+    # io
     "datasets[vision]<4.8",
-    "jsonargparse>4.45.0,<4.48",
+    "pandas[excel]",
+    # processing
+    "scikit-learn>=1.8.0",
+    "pycnnum",
+    # interaction & friendly ui
+    "typer",
+]
+
+[project.optional-dependencies]
+jupyter = [
     "ipykernel",
 ]

@@ -29,6 +29,7 @@ def map_to_sharegpt(
     problem_col: str = "text",
     answer_col: str = "answer",
     conversations_col: str = "conversations",
+    question_id_col: str = "question_id",
 ) -> dict:
     if conversations_col in e:
         assert len(e[conversations_col]) == 2, f"Expected 2, got {e[conversations_col]}"
@@ -45,6 +46,7 @@ def map_to_sharegpt(
 
     if image_col in e and "<image>" not in problem:
         problem = "<image>\n" + problem
+
     out = {
         "problem": problem,
         "answer": answer,
@@ -52,8 +54,8 @@ def map_to_sharegpt(
             {"from": "human", "value": problem},
             {"from": "gpt", "value": answer},
         ],
-        "images": [{"bytes": read_bytes(f"{image_root}/{e[image_col]}")}],
-        "_qid": e.get("question_id") or e.get("id"),
+        "images": [{"path": f"{image_root}/{e[image_col]}"}],
+        "_qid": e.get(question_id_col) or e.get("id"),
     }
 
     assert out["_qid"] is not None, (
