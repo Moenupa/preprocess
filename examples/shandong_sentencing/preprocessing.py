@@ -163,37 +163,21 @@ def filter_with_warning(e: dict) -> bool:
 
 
 def process_single_file(
-    province: str,
-    indir: str,
+    feat_filepath: Path,
+    data_filepath: Path,
     output_key: OutputType,
     value_filters: list[str] | None = None,
     range_filters: list[str] | None = None,
 ) -> Dataset:
-    match province.lower():
-        case "shandongv2":
-            # 剩下的行为最终用于模型训练的数据:
-            # X为右侧'山东省'文件的本院查明和本院认为列包括的文本
-            # Y为左侧'山东省 feature'文件中的有期徒刑列
-            feature_file = read_file_with_cache(
-                f"{indir}/daoqie_after_2019_features.xlsx"
-            )
-            data_file = read_file_with_cache(f"{indir}/daoqie_after_2019.xlsx")
+    # 剩下的行为最终用于模型训练的数据:
+    # X为右侧'山东省'文件的本院查明和本院认为列包括的文本
+    # Y为左侧'山东省 feature'文件中的有期徒刑列
+    feature_file = read_file_with_cache(str(feat_filepath))
+    data_file = read_file_with_cache(str(data_filepath))
 
-            # 上面X,Y可以通过案号匹配起来，做成一个文件
-            data_file = data_file[["案号", "本院查明", "本院认为", "裁判结果"]]
-            out = feature_file.merge(data_file, on="案号", how="inner")
-        case "shandong":
-            # 剩下的行为最终用于模型训练的数据:
-            # X为右侧'山东省'文件的本院查明和本院认为列包括的文本
-            # Y为左侧'山东省 feature'文件中的有期徒刑列
-            feature_file = read_file_with_cache(f"{indir}/Shandong_feature_414.xlsx")
-            data_file = read_file_with_cache(f"{indir}/Shandong.xlsx")
-
-            # 上面X,Y可以通过案号匹配起来，做成一个文件
-            data_file = data_file[["案号", "本院查明", "本院认为", "裁判结果"]]
-            out = feature_file.merge(data_file, on="案号", how="inner")
-        case _:
-            raise NotImplementedError(f"{province}: unsupported province")
+    # 上面X,Y可以通过案号匹配起来，做成一个文件
+    data_file = data_file[["案号", "本院查明", "本院认为", "裁判结果"]]
+    out = feature_file.merge(data_file, on="案号", how="inner")
 
     assert isinstance(out, pd.DataFrame)
     for col, val in VALUE_FILTERS.items():
@@ -206,7 +190,9 @@ def process_single_file(
         if value_filters is None or col in value_filters:
             before = len(out)
             out = out[out[col] == val]
-            logging.warning(f"- Filter {before:5d} -> {len(out):5d} by rule {col!r} == {val}")
+            logging.warning(
+                f"- Filter {before:5d} -> {len(out):5d} by rule {col!r} == {val}"
+            )
 
     for col, (lower_bound, upper_bound) in RANGE_FILTERS.items():
         if col not in out.columns:
@@ -224,8 +210,7 @@ def process_single_file(
 
     probation_lower_bound = np.maximum(12.0, out["有期徒刑"].astype(float))
     probation_term_mask = (
-        (out["缓刑考验期"] >= probation_lower_bound)
-        & (out["有期徒刑"] <= 36)
+        (out["缓刑考验期"] >= probation_lower_bound) & (out["有期徒刑"] <= 36)
     ) | (out["缓刑考验期"] == 0)
     logging.warning(
         f"- Filter {len(out):5d} -> {probation_term_mask.sum():5d} by rule '是否缓刑' in 0 U [max(12, 有期徒刑), 60]"
@@ -261,7 +246,8 @@ def process_single_file(
 
 
 def main(
-    indir: str = "in/legal",
+    feat_filepath: Path,
+    data_filepath: Path,
     outdir: Path = Path("out/legalv5"),
     rag_path: str | None = None,
     province: str = "shandongv2",
@@ -279,8 +265,8 @@ def main(
     instruction_str = get_instruction(rag_path)
 
     raw_dataset = process_single_file(
-        province,
-        indir=indir,
+        feat_filepath=feat_filepath,
+        data_filepath=data_filepath,
         output_key=output_key,
     )
     raw_dataset = raw_dataset.map(
@@ -298,9 +284,7 @@ def main(
     raw_dataset = raw_dataset.filter(filter_with_warning, desc="Finding leaks")
 
     final_len = len(raw_dataset)
-    logging.warning(
-        f"Final dataset size: {final_len} target 8948=1549+7399"
-    )
+    logging.warning(f"Final dataset size: {final_len} target 8948=1549+7399")
     ddict: DatasetDict = raw_dataset.train_test_split(
         test_size=test_ratio, train_size=train_ratio, shuffle=True, seed=seed
     )
