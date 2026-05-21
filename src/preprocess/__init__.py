@@ -5,6 +5,7 @@ import logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
+    datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True)],
 )
 logging.getLogger("httpx").setLevel(logging.WARN)

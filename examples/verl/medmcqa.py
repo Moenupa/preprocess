@@ -1,6 +1,8 @@
+from functools import partial
+from pprint import pprint
+
 import typer
 from datasets import DatasetDict, load_dataset
-from functools import partial
 
 from preprocess import DRY_RUN, TARGET_HF_REPO
 from preprocess.verl import REASONING_SUFFIX, verl_features
@@ -58,7 +60,7 @@ def main(dry_run: bool = DRY_RUN) -> None:
     print(result)
     for split_name, ds in result.items():
         print(f"\n--- {split_name} ---")
-        print(ds[0])
+        pprint(ds[0])
 
     if not dry_run:
         for split_name, ds in result.items():

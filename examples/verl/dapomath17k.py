@@ -1,9 +1,11 @@
 import re
-import typer
+from pprint import pprint
 
+import typer
 from datasets import load_dataset
+
 from preprocess import DRY_RUN, TARGET_HF_REPO
-from preprocess.verl import verl_features, dedup, REASONING_SUFFIX
+from preprocess.verl import REASONING_SUFFIX, dedup, verl_features
 
 
 def change_to_boxed(e: dict) -> dict:
@@ -41,7 +43,7 @@ def main(dry_run: bool = DRY_RUN) -> None:
     ds = ds.map(change_to_boxed, num_proc=8, features=verl_features)
 
     print(ds)
-    print(ds[0])
+    pprint(ds[0])
     if not dry_run:
         ds.push_to_hub(
             TARGET_HF_REPO, config_name="dapomath17k", num_shards=1, split="train"
