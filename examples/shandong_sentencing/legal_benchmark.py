@@ -1,10 +1,12 @@
 import os.path as osp
 import re
 import sys
+from functools import partial
 from glob import glob
 
 import numpy as np
 import pandas as pd
+import typer
 from sklearn.metrics import (
     f1_score,
     r2_score,
@@ -19,10 +21,39 @@ pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 
 
+def extract_boxed_content(text: str) -> str | None:
+    """
+    Extracts answers in \\boxed{}.
+    """
+    depth = 0
+    start_pos = text.rfind(r"\boxed{")
+    end_pos = -1
+    if start_pos != -1:
+        content = text[start_pos + len(r"\boxed{") :]
+        for i, char in enumerate(content):
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+
+            if depth == -1:  # exit
+                end_pos = i
+                break
+
+    if end_pos != -1:
+        return content[:end_pos].strip()
+
+    return None
+
+
 def extract_total_months(text: str) -> int | None:
     result = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL)
     result = re.sub(r"^.*?</think>\s*", "", result, flags=re.DOTALL)
-    result = result.strip()
+    if "\\boxed{" in result:
+        result = extract_boxed_content(result.strip())
+
+    if result is None:
+        return None
 
     if result.isdigit():
         return int(result)
@@ -37,6 +68,8 @@ def smape_fn(y_true: np.ndarray, y_pred: np.ndarray, epsilon: float = 1e-5) -> f
 
 def benchmark(
     fp: str,
+    pred_col: str,
+    gt_col: str,
     acc_rtol: float | None = 0.2,
     mape: bool = True,
     rad: bool = True,
@@ -45,15 +78,15 @@ def benchmark(
     smape: bool = False,
     f1: bool = True,
 ):
-    df = pd.read_json(fp, lines=True)[["predict", "label"]]
+    df = pd.read_json(fp, lines=True)[[pred_col, gt_col]]
 
-    if df["predict"].dtype != "int64":
-        df["predict_parsed"] = df["predict"].astype(str).apply(extract_total_months)
+    if df[pred_col].dtype != "int64":
+        df["predict_parsed"] = df[pred_col].astype(str).apply(extract_total_months)
     else:
-        df["predict_parsed"] = df["predict"]
+        df["predict_parsed"] = df[pred_col]
 
-    if df["label"].dtype != "int64":
-        df["label"] = df["label"].astype(str).apply(extract_total_months)
+    if df[gt_col].dtype != "int64":
+        df[gt_col] = df[gt_col].astype(str).apply(extract_total_months)
 
     _NAs = df["predict_parsed"].isna().sum()
     if _NAs == 0:
@@ -62,9 +95,9 @@ def benchmark(
         raise ValueError(f"Too many NAs in {fp}")
     else:
         print(f"WARN: {_NAs}/{df.shape[0]} NaNs in {fp}", file=sys.stderr)
-    df.dropna(subset=["predict_parsed", "label"], inplace=True)
+    df.dropna(subset=["predict_parsed", gt_col], inplace=True)
 
-    y_gt = df["label"]
+    y_gt = df[gt_col]
     y_pred = df["predict_parsed"]
 
     # gather metrics to return
@@ -108,18 +141,23 @@ def benchmark(
     return ret
 
 
-if __name__ == "__main__":
+def main(
+    files_or_dirs: list[str] = ["saves"],
+    pred_col: str = "predict",
+    gt_col: str = "label",
+):
     files = []
-    if args := sys.argv[1:]:
-        for arg in args:
-            if osp.isfile(arg):
-                files.append(arg)
-                continue
+    for arg in files_or_dirs:
+        if osp.isfile(arg):
+            files.append(arg)
+            continue
 
-            files.extend(glob(f"{arg}/**/generated_predictions.jsonl", recursive=True))
-    else:
-        files.extend(glob("saves/**/*/generated_predictions.jsonl", recursive=True))
-    results = process_map(benchmark, files, max_workers=4)
+        files.extend(glob(f"{arg}/**/*generated_predictions.jsonl", recursive=True))
+    results = process_map(
+        partial(benchmark, pred_col=pred_col, gt_col=gt_col),
+        files,
+        max_workers=4,
+    )
 
     df = pd.DataFrame(dict(zip(files, results))).T
     if len(df) == 0:
@@ -127,7 +165,11 @@ if __name__ == "__main__":
         exit(1)
 
     df.index = df.index.str.replace("saves/", "")
-    df.index = df.index.str.replace("/generated_predictions.jsonl", "")
+    df.index = df.index.str.replace("generated_predictions.jsonl", "")
     df.sort_index(inplace=True)
     df = (df * 100).round(2)
     print(df)
+
+
+if __name__ == "__main__":
+    typer.run(main)

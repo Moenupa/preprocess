@@ -241,7 +241,9 @@ def process_single_file(
         OutputType.probation_months.value,
         OutputType.probation_yesno.value,
     ]
-    assert set(OUTPUT_COLUMNS) <= set(out.columns), "Missing columns: " + ", ".join(set(OUTPUT_COLUMNS) - set(out.columns))
+    assert set(OUTPUT_COLUMNS) <= set(out.columns), "Missing columns: " + ", ".join(
+        set(OUTPUT_COLUMNS) - set(out.columns)
+    )
 
     dataset = Dataset.from_pandas(out)
     return dataset

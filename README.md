@@ -38,3 +38,12 @@ llamafactory-cli train examples/train_lora/qwen3_lora_sft.yaml \
 # this is a json lines file like this: '{predict": "12", "label": "12\n"}'
 ls saves/**/generated_predictions.jsonl
 ```
+
+## Zero-shot Evaluation
+
+```sh
+# First, fill your API info in .env.example -> .env
+uv run --env-file .env examples/shandong_sentencing/zero_shot_eval.py /path/to/test.parquet
+# a /path/to/generated_predictions.jsonl file will be saved aside /path/to/test.parquet
+uv run --no-sync examples/shandong_sentencing/legal_benchmark.py --files-or-dirs /path/to/generated_predictions.jsonl
+```

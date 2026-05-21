@@ -17,6 +17,7 @@ dependencies = [
     "pycnnum",
     # interaction & friendly ui
     "typer",
+    "openai",
 ]
 
 [project.optional-dependencies]
