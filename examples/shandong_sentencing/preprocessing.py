@@ -26,9 +26,9 @@ logging.basicConfig(
 
 
 class OutputType(Enum):
-    imprisonment_months = "有期徒刑"
-    probation_months = "缓刑考验期"
-    probation_yesno = "是否缓刑"
+    imprisonment_months = "应当判处的有期徒刑月数"
+    probation_months = "应当判处的缓刑月数"
+    probation_yesno = "是否应当判处缓刑"
 
 
 VALUE_FILTERS = {
@@ -53,13 +53,13 @@ def log_sample(e: dict, reason: str, level: int = logging.WARNING):
     logging.log(level, f"- {e['_qid']!r}: {e['input']!r}. {e['output']!r}")
 
 
-def get_instruction(rag_path: str | None = None) -> str:
+def get_instruction(rag_path: str | None, output_key: OutputType) -> str:
     if rag_path is None:
-        return "根据以下案件信息，判断被告人应当判处的有期徒刑月数。"
+        return f"根据以下案件信息，判断被告人{output_key.value}。"
 
     with open(rag_path) as f:
         rag = f.read().strip() + "\n\n"
-    return f"{rag}根据以上参考资料及以下案件信息，判断被告人应当判处的有期徒刑月数。"
+    return f"{rag}根据以上参考资料及以下案件信息，判断被告人{output_key.value}。"
 
 
 def remove_shortest_fragment(text: str, _qid: str, gt: str) -> str:
@@ -226,8 +226,10 @@ def process_single_file(
         out = out[probation_term_mask]
 
     # post-init
-    out[OutputType.probation_yesno.value] = (out["缓刑考验期"] > 0).astype(int)
     out["裁判结果"] = out["裁判结果"].apply(lambda x: x.replace(" ", ""))
+    out[OutputType.probation_yesno.value] = (out["缓刑考验期"] > 0).astype(int)
+    out[OutputType.imprisonment_months.value] = out["有期徒刑"].astype(int)
+    out[OutputType.probation_months.value] = out["缓刑考验期"].astype(int)
 
     # a quick test for desired columns
     OUTPUT_COLUMNS = [
@@ -235,11 +237,11 @@ def process_single_file(
         "本院查明",
         "本院认为",
         "裁判结果",
-        "有期徒刑",
-        "缓刑考验期",
-        "是否缓刑",
+        OutputType.imprisonment_months.value,
+        OutputType.probation_months.value,
+        OutputType.probation_yesno.value,
     ]
-    assert set(OUTPUT_COLUMNS) <= set(out.columns)
+    assert set(OUTPUT_COLUMNS) <= set(out.columns), "Missing columns: " + ", ".join(set(OUTPUT_COLUMNS) - set(out.columns))
 
     dataset = Dataset.from_pandas(out)
     return dataset
@@ -262,7 +264,7 @@ def main(
     seed: int = 26,
     dry_run: bool = True,
 ):
-    instruction_str = get_instruction(rag_path)
+    instruction_str = get_instruction(rag_path, output_key)
 
     raw_dataset = process_single_file(
         feat_filepath=feat_filepath,
