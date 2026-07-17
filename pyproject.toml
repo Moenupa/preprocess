@@ -12,14 +12,20 @@ dependencies = [
     # io
     "datasets[vision]<4.8",
     "pandas[excel]",
+    "seaborn",
     # processing
     "scikit-learn>=1.8.0",
     "pycnnum",
+    "openai",
     # interaction & friendly ui
     "typer",
 ]
 
 [project.optional-dependencies]
+openslide = [
+    "openslide-python",
+    "openslide-bin",
+]
 jupyter = [
     "ipykernel",
 ]
