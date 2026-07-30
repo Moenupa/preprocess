@@ -1,15 +1,15 @@
 from enum import StrEnum
 
+from datasets import Features, Image, List, Value
 from openai._models import validate_type
 from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
-    ChatCompletionAssistantMessageParam,
 )
-from datasets import Features, Image, List, Value
 
-mm_features = Features(
+sharegpt_features = Features(
     conversations=List(
         {
             "from": Value("string"),
@@ -17,7 +17,7 @@ mm_features = Features(
         }
     ),
     images=List(Image(decode=True)),
-    hint=Value("string"),
+    extra_info=Value("string"),
     _qid=Value("string"),
 )
 
@@ -29,7 +29,7 @@ openai_features = Features(
         }
     ),
     images=List(Image(decode=True)),
-    hint=Value("string"),
+    extra_info=Value("string"),
     _qid=Value("string"),
 )
 
@@ -98,7 +98,7 @@ class PerSampleFn:
             assert msg.get("from") in ("human", "gpt"), (
                 f"Invalid 'from' value: {msg.get('from')}"
             )
-            if msg.get("from") != "human":
+            if msg.get("from") == "gpt":
                 continue
 
             content = msg.get("value")
@@ -199,7 +199,7 @@ def map_to_sharegpt(
     col_prob: str = "problem",
     col_ans: str = "answer",
     col_conv: str = "conversations",
-    col_hint: str = "hint",
+    col_extra: str = "extra_info",
     col_id: str | None = None,
 ) -> dict:
     images = PerSampleFn.parse_images(e[col_img], root)
@@ -219,7 +219,7 @@ def map_to_sharegpt(
     out = {
         "conversations": conversations,
         "images": images,
-        "hint": e.get(col_hint, ""),
+        "extra_info": e.get(col_extra, ""),
         "_qid": PerSampleFn.get_qid(e, idx, col_source, col_id),
     }
     return out
@@ -231,11 +231,11 @@ def map_to_openai(
     root: str = ".",
     col_source: str = "source",
     col_img: str = "image",
-    col_prob: str = "text",
+    col_prob: str = "problem",
     col_ans: str = "answer",
     col_msg: str = "messages",
     col_conv: str = "conversations",
-    col_hint: str = "hint",
+    col_extra: str = "extra_info",
     col_id: str | None = None,
 ) -> dict:
     images = PerSampleFn.parse_images(e[col_img], root)
@@ -247,7 +247,7 @@ def map_to_openai(
     out = {
         "messages": openai_messsages,
         "images": images,
-        "hint": e.get(col_hint, ""),
+        "extra_info": e.get(col_extra, ""),
         "_qid": PerSampleFn.get_qid(e, idx, col_source, col_id),
     }
     return out
